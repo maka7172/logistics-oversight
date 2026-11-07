@@ -1,0 +1,131 @@
+# Logistics Oversight v2 - Application Configuration
+# All business rules and feature toggles live here.
+# Secrets stay in secrets.env / environment variables.
+
+app:
+  name: "Logistics Oversight"
+  version: "2.0.0"
+  defaultLocale: "fa"
+  supportedLocales: ["fa", "en"]
+  timezone: "Asia/Tehran"
+
+security:
+  jwt:
+    accessExpires: "15m"
+    refreshExpires: "7d"
+    algorithm: "HS256"
+  rateLimit:
+    global:
+      ttl: 60
+      limit: 120
+    auth:
+      ttl: 60
+      limit: 10
+    otp:
+      ttl: 300
+      limit: 5
+  cors:
+    origins:
+      - "http://localhost:3000"
+      - "http://localhost:3001"
+      - "http://127.0.0.1:3000"
+    credentials: true
+  password:
+    minLength: 8
+    requireNumber: true
+    requireUpper: false
+
+otp:
+  provider: "mock"          # mock | smsir
+  length: 6
+  expiresSeconds: 120
+  maxAttempts: 5
+  resendCooldownSeconds: 60
+
+shift:
+  maxDurationHours: 16
+  allowStartWithoutInventory: false
+  requireGpsOnStart: true
+  requireInternetOnStart: false   # offline allowed after start
+
+mission:
+  statuses:
+    - pending
+    - accepted
+    - in_progress
+    - completed
+    - failed
+    - rescheduled
+  requireSignature: true
+  requirePhoto: true
+  requireRecipientName: true
+  maxArrivalDistanceMeters: 150
+  geofenceAutoArrive: true
+
+inventory:
+  allowNegative: false
+  discrepancyRequiresNote: true
+  transactionalDeduction: true   # G3
+
+payment:
+  methods:
+    - cash
+    - card
+    - transfer
+    - check
+  requireReferenceForNonCash: true
+
+returns:
+  kinds:
+    - return
+    - damaged
+  affectInventory: true
+  affectCustomerLedger: true
+
+gis:
+  locationPingIntervalSeconds: 4
+  locationBatchSize: 20
+  mockGpsDetection: true
+  geofenceDefaultRadiusMeters: 80
+  etaUpdateIntervalSeconds: 30
+
+realtime:
+  channels:
+    driverLocation: "driver:location"
+    mission: "mission"
+    chat: "chat"
+    alert: "alert"
+  presenceTtlSeconds: 30
+
+offline:
+  enabled: true
+  outboxMaxRetries: 10
+  outboxRetryBackoffSeconds: 5
+  idempotencyTtlHours: 48
+
+features:
+  offlineSync: true
+  geofence: true
+  vrp: true
+  chat: true
+  sos: true
+  auditLog: true
+  customerLedger: true
+  multiLanguage: true
+
+ui:
+  driver:
+    theme: "system"   # light | dark | system
+    mapProvider: "maplibre"
+  web:
+    theme: "system"
+    defaultPageSize: 25
+
+logging:
+  level: "info"       # error | warn | info | debug
+  pretty: true
+  redactFields:
+    - password
+    - token
+    - secret
+    - otp

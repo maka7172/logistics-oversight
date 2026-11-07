@@ -1,0 +1,35 @@
+{
+  "token_hmac_secret_key": "change_me_very_long_secret_for_jwt",
+  "api_key": "change_me_centrifugo_api_key",
+  "admin_password": "change_me_admin",
+  "admin_secret": "change_me_admin_secret",
+  "allowed_origins": ["*"],
+  "namespaces": [
+    {
+      "name": "driver",
+      "presence": true,
+      "join_leave": true,
+      "history_size": 10,
+      "history_ttl": "60s"
+    },
+    {
+      "name": "mission",
+      "history_size": 50,
+      "history_ttl": "300s"
+    },
+    {
+      "name": "chat",
+      "presence": true,
+      "history_size": 100,
+      "history_ttl": "86400s"
+    },
+    {
+      "name": "alert",
+      "history_size": 20,
+      "history_ttl": "3600s"
+    }
+  ],
+  "log_level": "info",
+  "health": true,
+  "prometheus": true
+}

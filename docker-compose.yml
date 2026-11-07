@@ -1,0 +1,171 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: lo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-logistics}
+      POSTGRES_USER: ${POSTGRES_USER:-logistics}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_strong_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-logistics} -d ${POSTGRES_DB:-logistics}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - lo-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: lo-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - lo-net
+
+  minio:
+    image: cleanstart/minio:latest
+    container_name: lo-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change_me_minio_password}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lo-net
+
+  # minio-init:
+  #   image: minio/mc:latest
+  #   container_name: lo-minio-init
+  #   depends_on:
+  #     minio:
+  #       condition: service_healthy
+  #   entrypoint: >
+  #     /bin/sh -c "
+  #     mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-change_me_minio_password};
+  #     mc mb --ignore-existing local/logistics;
+  #     mc anonymous set download local/logistics/public || true;
+  #     exit 0;
+  #     "
+  #   environment:
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change_me_minio_password}
+  #   networks:
+  #     - lo-net
+
+  centrifugo:
+    image: centrifugo/centrifugo:v5
+    container_name: lo-centrifugo
+    restart: unless-stopped
+    command: centrifugo -c config.json
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./infra/docker/centrifugo/config.json:/centrifugo/config.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - lo-net
+
+  # OSRM (routing) - using a small demo dataset for development
+  # For production replace with your region extract
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: lo-osrm
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - osrm_data:/data
+    # Note: first run needs data preparation. For now we keep the service ready.
+    # Use a pre-processed extract or run the preparation scripts in infra/scripts.
+    command: osrm-routed --algorithm mld /data/map.osrm || sleep infinity
+    networks:
+      - lo-net
+
+  # VROOM for VRP optimization (optional, can be enabled later)
+  # vroom:
+  #   image: vroomvrp/vroom-docker:v1.14.0
+  #   ...
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: lo-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      centrifugo:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-logistics}
+      POSTGRES_USER: ${POSTGRES_USER:-logistics}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_strong_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change_me_minio_password}
+      CENTRIFUGO_URL: http://centrifugo:8000
+      CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:-change_me_centrifugo_api_key}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access_secret_min_32_chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh_secret_min_32_chars}
+    volumes:
+      - ./apps/api:/app
+      - /app/node_modules
+      - ./config:/config:ro
+    networks:
+      - lo-net
+    profiles:
+      - full   # start with: docker compose --profile full up
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  osrm_data:
+
+networks:
+  lo-net:
+    driver: bridge

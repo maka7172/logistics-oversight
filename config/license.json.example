@@ -1,0 +1,27 @@
+{
+  "licenseKey": "LO-XXXX-XXXX-XXXX-XXXX",
+  "companyName": "Your Company Name",
+  "companyId": "company-uuid-here",
+  "issuedAt": "2026-11-01T00:00:00Z",
+  "expiresAt": "2027-11-01T00:00:00Z",
+  "maxDrivers": 500,
+  "maxVehicles": 200,
+  "modules": {
+    "driverApp": true,
+    "supervisorApp": true,
+    "webPanel": true,
+    "gis": true,
+    "vrp": true,
+    "realtime": true,
+    "offlineSync": true,
+    "finance": true,
+    "chat": true,
+    "sos": true,
+    "audit": true
+  },
+  "features": {
+    "multiTenant": false,
+    "whiteLabel": false
+  },
+  "signature": "replace-with-real-signature-when-licensed"
+}

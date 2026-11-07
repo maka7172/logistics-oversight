@@ -1,0 +1,30 @@
+cd D:\project\logistics-oversight\apps\web    
+npm install 
+npm run dev 
+
+docker compose up -d postgres redis centrifugo
+
+cd apps/api  
+npm install   
+npm run seed      
+npm run start:dev
+
+
+cd D:\project\logistics-oversight\apps\field_app
+flutter create . --project-name field_app
+# مجوزهای Android از android/app/src/main/AndroidManifest.snippet.xml را در Manifest اصلی بگذار
+flutter pub get
+flutter run
+
+            $env:PUB_HOSTED_URL="https://pub.flutter-io.cn"
+            $env:FLUTTER_STORAGE_BASE_URL="https://storage.flutter-io.cn"
+
+            flutter doctor
+            cd D:\project\logistics-oversight\apps\field_app
+            flutter create . --project-name field_app
+            flutter pub get
+            flutter devices
+            flutter run -d <R58n51AJJKL>--> device_ID
+            
+
+

@@ -25,6 +25,12 @@ export class RbacService {
     return r;
   }
 
+  private assertNoWildcard(perms: Permission[]) {
+    if (perms.some((p) => p.code === '*')) {
+      throw new ForbiddenException('Cannot assign wildcard (*) permission to custom roles');
+    }
+  }
+
   async createRole(data: {
     code: string;
     name: string;
@@ -33,12 +39,14 @@ export class RbacService {
     permissionCodes?: string[];
   }) {
     if (!data.code || !data.name) throw new BadRequestException('code and name required');
+    if (data.code === 'super_admin') throw new ForbiddenException('Cannot create super_admin role');
     const exists = await this.roleRepo.findOne({ where: { code: data.code } });
     if (exists) throw new BadRequestException('Role code already exists');
 
     let permissions: Permission[] = [];
     if (data.permissionCodes?.length) {
       permissions = await this.permRepo.find({ where: { code: In(data.permissionCodes) } });
+      this.assertNoWildcard(permissions);
     }
 
     const role = this.roleRepo.create({
@@ -62,11 +70,19 @@ export class RbacService {
     },
   ) {
     const role = await this.getRole(id);
+    if (role.isSystem || role.code === 'super_admin') {
+      // allow renaming display only for system roles, not permission changes
+      if (data.permissionCodes) {
+        throw new ForbiddenException('Cannot change permissions of system roles');
+      }
+    }
     if (data.name !== undefined) role.name = data.name;
     if (data.nameEn !== undefined) role.nameEn = data.nameEn;
     if (data.description !== undefined) role.description = data.description;
     if (data.permissionCodes) {
-      role.permissions = await this.permRepo.find({ where: { code: In(data.permissionCodes) } });
+      const permissions = await this.permRepo.find({ where: { code: In(data.permissionCodes) } });
+      this.assertNoWildcard(permissions);
+      role.permissions = permissions;
     }
     return this.roleRepo.save(role);
   }
@@ -76,7 +92,6 @@ export class RbacService {
     if (role.isSystem || role.code === 'super_admin') {
       throw new ForbiddenException('Cannot delete system role');
     }
-    // soft: clear permissions and rename? Better just forbid delete of system; for custom roles allow remove
     await this.roleRepo.remove(role);
     return { success: true };
   }

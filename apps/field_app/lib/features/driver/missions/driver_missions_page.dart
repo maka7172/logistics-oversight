@@ -84,10 +84,23 @@ class _DriverMissionsPageState extends State<DriverMissionsPage> {
     try {
       final opId = const Uuid().v4();
       final amount = result['amount'] as int;
+      final rawItems = m['items'];
+      final items = <Map<String, dynamic>>[];
+      if (rawItems is List) {
+        for (final it in rawItems) {
+          if (it is Map && it['productId'] != null) {
+            final ordered = it['orderedQty'] ?? it['deliveredQty'] ?? 0;
+            items.add({
+              'productId': it['productId'].toString(),
+              'deliveredQty': ordered is num ? ordered : num.tryParse(ordered.toString()) ?? 0,
+            });
+          }
+        }
+      }
       await api.post(
         '/missions/${m['id']}/complete',
         body: {
-          'items': [],
+          'items': items,
           'payments': amount > 0 ? [{'amount': amount, 'method': 'cash', 'isPartial': false}] : [],
           'pod': {'recipientName': result['name']},
           'returns': [],

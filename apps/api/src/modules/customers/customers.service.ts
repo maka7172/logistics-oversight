@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../../database/entities/customer.entity';
@@ -19,12 +19,15 @@ export class CustomersService {
   }
 
   create(data: Partial<Customer>) {
-    return this.repo.save(this.repo.create(data));
+    const { outstandingDebt, ...rest } = data as any;
+    return this.repo.save(this.repo.create({ ...rest, outstandingDebt: 0 }));
   }
 
   async update(id: string, data: Partial<Customer>) {
     await this.findOne(id);
-    await this.repo.update(id, data as any);
+    const { outstandingDebt, id: _id, createdAt, updatedAt, ...safe } = data as any;
+    if (Object.keys(safe).length === 0) throw new BadRequestException('No updatable fields');
+    await this.repo.update(id, safe);
     return this.findOne(id);
   }
 }

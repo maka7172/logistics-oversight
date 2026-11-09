@@ -20,7 +20,7 @@ import { UsersModule } from '../users/users.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: () => ({
-        secret: process.env.JWT_ACCESS_SECRET || 'dev_access_secret_change_me_32chars_min',
+        secret: process.env.JWT_ACCESS_SECRET || (process.env.NODE_ENV === 'production' ? undefined : 'dev_only_access_secret_change_me_32chars'),
         signOptions: {
           expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m',
         },

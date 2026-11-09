@@ -20,7 +20,7 @@ export default function DashboardPage() {
     { href: '/shifts', label: 'شیفت فعال', value: stats?.shiftsActive, icon: CalendarRange, color: 'bg-amber-500' },
     { href: '/missions', label: 'مأموریت باز', value: stats?.missionsOpen, icon: MapPinned, color: 'bg-sky-500' },
     { href: '/drivers', label: 'راننده فعال', value: stats?.driversActive, icon: UserCircle, color: 'bg-violet-500' },
-    { href: '/products', label: 'کالای فعال', value: stats?.productsActive, icon: Package, color: 'bg-emerald-500' },
+    { href: '/products', label: 'کالای فعال', value: stats?.products ?? stats?.productsActive, icon: Package, color: 'bg-emerald-500' },
     { href: '/monitor', label: 'پایش زنده', value: '●', icon: Radio, color: 'bg-rose-500' },
     { href: '/reports', label: 'گزارشات', value: stats?.missionsDone ?? '—', icon: Truck, color: 'bg-slate-600' },
   ];

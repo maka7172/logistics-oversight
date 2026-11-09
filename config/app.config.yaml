@@ -36,7 +36,7 @@ security:
     requireUpper: false
 
 otp:
-  provider: "mock"          # mock | smsir
+  provider: "mock"          # mock | smsir — env OTP_PROVIDER overrides this
   length: 6
   expiresSeconds: 120
   maxAttempts: 5

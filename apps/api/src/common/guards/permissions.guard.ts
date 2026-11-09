@@ -3,6 +3,10 @@ import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
+/**
+ * required permissions are treated as OR: user needs at least one.
+ * Super admin / permission "*" bypasses all checks.
+ */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
@@ -23,13 +27,14 @@ export class PermissionsGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     if (!user) throw new ForbiddenException('No user in request');
 
-    // Super admin bypass
     if (user.isSuperAdmin || user.roles?.includes('super_admin')) return true;
 
     const userPerms: string[] = user.permissions || [];
-    const hasAll = required.every((p) => userPerms.includes(p) || userPerms.includes('*'));
-    if (!hasAll) {
-      throw new ForbiddenException(`Missing permissions: ${required.join(', ')}`);
+    if (userPerms.includes('*')) return true;
+
+    const ok = required.some((p) => userPerms.includes(p));
+    if (!ok) {
+      throw new ForbiddenException(`Missing permissions: need one of [${required.join(', ')}]`);
     }
     return true;
   }

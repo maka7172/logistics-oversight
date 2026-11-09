@@ -29,7 +29,6 @@ build/
 .env
 .env.local
 .env.*.local
-.env.example
 config/secrets.env
 config/license.json
 *.pem

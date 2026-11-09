@@ -18,14 +18,12 @@ export class UsersController {
 
   @Get('roles')
   @Permissions('users:read', 'users:manage_roles')
-  @ApiOperation({ summary: 'List all roles' })
   roles() {
     return this.usersService.listRoles();
   }
 
   @Get()
   @Permissions('users:read')
-  @ApiOperation({ summary: 'List users' })
   list(@Query('all') all?: string) {
     return this.usersService.list(all !== 'true');
   }
@@ -38,15 +36,20 @@ export class UsersController {
 
   @Post()
   @Permissions('users:write')
-  @ApiOperation({ summary: 'Create user and assign roles (isSuperAdmin only by super admin)' })
-  create(@Body() body: any) {
-    return this.usersService.create(body);
+  create(@CurrentUser() actor: any, @Body() body: any) {
+    const { isSuperAdmin, ...rest } = body || {};
+    return this.usersService.create(
+      { ...rest, isSuperAdmin: !!isSuperAdmin },
+      { id: actor.id, isSuperAdmin: !!actor.isSuperAdmin },
+    );
   }
 
   @Patch(':id')
   @Permissions('users:write', 'users:manage_roles')
-  @ApiOperation({ summary: 'Update user and roles' })
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.usersService.update(id, body);
+  update(@Param('id') id: string, @CurrentUser() actor: any, @Body() body: any) {
+    return this.usersService.update(id, body || {}, {
+      id: actor.id,
+      isSuperAdmin: !!actor.isSuperAdmin,
+    });
   }
 }

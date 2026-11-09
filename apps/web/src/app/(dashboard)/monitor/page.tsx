@@ -6,10 +6,15 @@ import { useAuthStore } from '@/lib/store';
 import { messages } from '@/i18n/messages';
 
 type Row = {
-  driver: { id: string; user?: { fullName: string; phone: string }; driverRoleLabel?: string };
+  driverId?: string;
+  fullName?: string;
+  phone?: string;
+  driverRoleLabel?: string;
   lastLocation: { lat: number; lng: number; speed?: number; recordedAt: string } | null;
   activeShiftId: string | null;
   shiftStatus: string | null;
+  // legacy nested shape
+  driver?: { id: string; user?: { fullName: string; phone: string } };
 };
 
 export default function MonitorPage() {
@@ -60,21 +65,26 @@ export default function MonitorPage() {
               <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{t.loading}</td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">راننده‌ای نیست یا هنوز پینگی ارسال نشده</td></tr>
-            ) : rows.map((r) => (
-              <tr key={r.driver.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium">{r.driver.user?.fullName || '—'}
-                  <div className="text-xs text-slate-400 dir-ltr text-left">{r.driver.user?.phone}</div>
-                </td>
-                <td className="px-4 py-3">{r.shiftStatus || '—'}</td>
-                <td className="px-4 py-3 font-mono text-xs">
-                  {r.lastLocation ? `${r.lastLocation.lat.toFixed(5)}, ${r.lastLocation.lng.toFixed(5)}` : '—'}
-                </td>
-                <td className="px-4 py-3">{r.lastLocation?.speed != null ? `${r.lastLocation.speed}` : '—'}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">
-                  {r.lastLocation?.recordedAt ? new Date(r.lastLocation.recordedAt).toLocaleString('fa-IR') : '—'}
-                </td>
-              </tr>
-            ))}
+            ) : rows.map((r, i) => {
+              const name = r.fullName || r.driver?.user?.fullName || '—';
+              const phone = r.phone || r.driver?.user?.phone || '';
+              const key = r.driverId || r.driver?.id || String(i);
+              return (
+                <tr key={key} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium">{name}
+                    <div className="text-xs text-slate-400 dir-ltr text-left">{phone}</div>
+                  </td>
+                  <td className="px-4 py-3">{r.shiftStatus || '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {r.lastLocation ? `${Number(r.lastLocation.lat).toFixed(5)}, ${Number(r.lastLocation.lng).toFixed(5)}` : '—'}
+                  </td>
+                  <td className="px-4 py-3">{r.lastLocation?.speed != null ? `${r.lastLocation.speed}` : '—'}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {r.lastLocation?.recordedAt ? new Date(r.lastLocation.recordedAt).toLocaleString('fa-IR') : '—'}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

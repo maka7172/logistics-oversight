@@ -61,6 +61,7 @@ export default function ReportsPage() {
             <thead className="bg-slate-50 text-slate-600"><tr>
               <th className="px-4 py-3 text-start">راننده</th>
               <th className="px-4 py-3 text-start">وضعیت</th>
+              <th className="px-4 py-3 text-start">مبلغ</th>
               <th className="px-4 py-3 text-start">شروع</th>
               <th className="px-4 py-3 text-start">پایان</th>
             </tr></thead>

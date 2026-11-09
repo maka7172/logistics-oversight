@@ -44,9 +44,9 @@ const ROLES = [
   { code: 'super_admin', name: 'سوپر ادمین', nameEn: 'Super Admin', isSystem: true, perms: ['*'] },
   { code: 'admin', name: 'مدیر سیستم', nameEn: 'System Admin', isSystem: true, perms: ['users:read', 'users:write', 'users:manage_roles', 'drivers:read', 'drivers:write', 'vehicles:read', 'vehicles:write', 'products:read', 'products:write', 'customers:read', 'customers:write', 'shifts:read', 'missions:read', 'missions:write', 'missions:assign', 'inventory:read', 'finance:read', 'gis:read', 'audit:read', 'license:read'] },
   { code: 'dispatcher', name: 'دیسپچر', nameEn: 'Dispatcher', isSystem: true, perms: ['drivers:read', 'vehicles:read', 'customers:read', 'shifts:read', 'missions:read', 'missions:write', 'missions:assign', 'gis:read', 'gis:write'] },
-  { code: 'supervisor', name: 'ناظر', nameEn: 'Supervisor', isSystem: true, perms: ['shifts:read', 'shifts:inventory', 'inventory:read', 'inventory:write', 'missions:read'] },
+  { code: 'supervisor', name: 'ناظر', nameEn: 'Supervisor', isSystem: true, perms: ['users:read_self', 'drivers:read', 'vehicles:read', 'products:read', 'customers:read', 'shifts:read', 'shifts:start', 'shifts:inventory', 'missions:read', 'missions:write', 'missions:assign', 'inventory:read', 'inventory:write', 'gis:read', 'finance:read'] },
   { code: 'finance', name: 'مالی', nameEn: 'Finance', isSystem: true, perms: ['finance:read', 'finance:write', 'customers:read', 'shifts:read', 'missions:read'] },
-  { code: 'driver', name: 'راننده', nameEn: 'Driver', isSystem: true, perms: ['users:read_self', 'shifts:read', 'shifts:start', 'shifts:close', 'missions:read', 'missions:close', 'inventory:read'] },
+  { code: 'driver', name: 'راننده', nameEn: 'Driver', isSystem: true, perms: ['users:read_self', 'shifts:read', 'shifts:start', 'shifts:close', 'missions:read', 'missions:close', 'inventory:read', 'gis:write'] },
 ];
 
 async function run() {

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 interface OtpRecord {
@@ -14,20 +14,19 @@ export class OtpService {
 
   constructor(private config: ConfigService) {}
 
+  /** env has priority over yaml */
   private get provider(): string {
-    return (
-      this.config.get<string>('otp.provider') ||
-      process.env.OTP_PROVIDER ||
-      'mock'
-    ).toLowerCase();
+    const fromEnv = process.env.OTP_PROVIDER;
+    const fromYaml = this.config.get<string>('otp.provider');
+    return (fromEnv || fromYaml || 'mock').toLowerCase().trim();
   }
 
   private get length(): number {
-    return Number(this.config.get('otp.length') || process.env.OTP_LENGTH || 6);
+    return Number(process.env.OTP_LENGTH || this.config.get('otp.length') || 6);
   }
 
   private get expiresSeconds(): number {
-    return Number(this.config.get('otp.expiresSeconds') || process.env.OTP_EXPIRES_SECONDS || 120);
+    return Number(process.env.OTP_EXPIRES_SECONDS || this.config.get('otp.expiresSeconds') || 120);
   }
 
   private generateCode(): string {
@@ -42,37 +41,41 @@ export class OtpService {
     const expiresAt = Date.now() + this.expiresSeconds * 1000;
     this.store.set(normalized, { code, expiresAt, attempts: 0 });
 
-    if (this.provider === 'mock') {
+    const provider = this.provider;
+    const isProd = process.env.NODE_ENV === 'production';
+
+    if (provider === 'mock') {
+      if (isProd) {
+        throw new ServiceUnavailableException('OTP mock is disabled in production. Set OTP_PROVIDER=smsir');
+      }
       this.logger.log(`[MOCK OTP] phone=${normalized} code=${code}`);
       return { success: true, message: 'OTP sent (mock mode)', mockCode: code };
     }
 
-    if (this.provider === 'smsir' || this.provider === 'sms.ir') {
-      const apiKey = process.env.SMSIR_API_KEY || process.env.SMS_IR_API_KEY;
-      const templateId = process.env.SMSIR_TEMPLATE_ID || process.env.SMS_IR_TEMPLATE_ID;
-      const line = process.env.SMSIR_LINE_NUMBER || process.env.SMS_IR_LINE_NUMBER;
+    if (provider === 'smsir' || provider === 'sms.ir') {
+      const apiKey = (process.env.SMSIR_API_KEY || process.env.SMS_IR_API_KEY || '').trim();
+      const templateId = (process.env.SMSIR_TEMPLATE_ID || process.env.SMS_IR_TEMPLATE_ID || '').trim();
 
-      if (!apiKey) {
-        this.logger.warn('SMSIR_API_KEY missing – fallback mock');
-        return {
-          success: true,
-          message: 'OTP sent (fallback mock – set SMSIR_API_KEY)',
-          mockCode: code,
-        };
+      if (!apiKey || !templateId) {
+        this.logger.error('SMSIR_API_KEY or SMSIR_TEMPLATE_ID missing');
+        if (isProd) {
+          throw new ServiceUnavailableException('SMS provider is not configured');
+        }
+        // In development only: explicit fail message, NO silent mock with success path confusion
+        throw new BadRequestException(
+          'SMS.ir تنظیم نشده: SMSIR_API_KEY و SMSIR_TEMPLATE_ID را در .env بگذارید (یا OTP_PROVIDER=mock برای تست)',
+        );
       }
 
       try {
-        // sms.ir Verify API (template-based)
-        // Docs: https://console.sms.ir — Web Service
-        const body: any = {
-          mobile: normalized.replace(/^0/, '0'), // keep local format; many templates expect 09...
-          templateId: templateId ? Number(templateId) : undefined,
+        const body = {
+          mobile: normalized,
+          templateId: Number(templateId),
           parameters: [
             { name: 'CODE', value: code },
-            { name: 'code', value: code },
+            
           ],
         };
-        // If only line-based send is configured without template, still try verify
         const res = await fetch('https://api.sms.ir/v1/send/verify', {
           method: 'POST',
           headers: {
@@ -84,22 +87,19 @@ export class OtpService {
         });
         const data: any = await res.json().catch(() => ({}));
         if (!res.ok || data?.status !== 1) {
-          this.logger.error(`SMS.ir error status=${res.status} body=${JSON.stringify(data)} line=${line || '-'}`);
-          // keep code in store so verify still works if user reads from panel; surface error
-          throw new BadRequestException(
-            data?.message || 'ارسال پیامک ناموفق بود. کلید/قالب sms.ir را بررسی کنید',
-          );
+          this.logger.error(`SMS.ir error status=${res.status} body=${JSON.stringify(data)}`);
+          throw new BadRequestException(data?.message || 'ارسال پیامک ناموفق بود');
         }
         this.logger.log(`[SMS.ir] OTP sent to ${normalized}`);
         return { success: true, message: 'OTP sent via SMS.ir' };
       } catch (e: any) {
-        if (e instanceof BadRequestException) throw e;
+        if (e instanceof BadRequestException || e instanceof ServiceUnavailableException) throw e;
         this.logger.error(`SMS.ir request failed: ${e?.message || e}`);
         throw new BadRequestException('خطا در ارتباط با سرویس پیامک');
       }
     }
 
-    throw new BadRequestException('Unknown OTP provider');
+    throw new BadRequestException(`Unknown OTP provider: ${provider}`);
   }
 
   async verifyOtp(phone: string, code: string): Promise<boolean> {
@@ -115,7 +115,7 @@ export class OtpService {
       this.store.delete(normalized);
       return false;
     }
-    if (record.code !== code.trim()) return false;
+    if (record.code !== String(code).trim()) return false;
     this.store.delete(normalized);
     return true;
   }

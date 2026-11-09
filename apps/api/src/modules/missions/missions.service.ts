@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Mission, MissionStatus } from '../../database/entities/mission.entity';
@@ -10,16 +10,46 @@ import { ShiftInventory } from '../../database/entities/shift-inventory.entity';
 import { CustomerLedger } from '../../database/entities/customer-ledger.entity';
 import { Customer } from '../../database/entities/customer.entity';
 import { IdempotencyKey } from '../../database/entities/idempotency-key.entity';
+import { Shift } from '../../database/entities/shift.entity';
+import { Driver } from '../../database/entities/driver.entity';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class MissionsService {
   constructor(
     @InjectRepository(Mission) private missionRepo: Repository<Mission>,
     @InjectRepository(IdempotencyKey) private idemRepo: Repository<IdempotencyKey>,
+    @InjectRepository(Shift) private shiftRepo: Repository<Shift>,
+    @InjectRepository(Driver) private driverRepo: Repository<Driver>,
     private dataSource: DataSource,
+    private audit: AuditService,
   ) {}
 
-  findByShift(shiftId: string) {
+  private isStaff(user: any) {
+    return !!(
+      user?.isSuperAdmin ||
+      user?.roles?.includes('super_admin') ||
+      user?.roles?.includes('admin') ||
+      user?.roles?.includes('supervisor') ||
+      user?.permissions?.includes('*') ||
+      user?.permissions?.includes('missions:assign')
+    );
+  }
+
+  async assertCanAccessShift(shiftId: string, user: any) {
+    if (this.isStaff(user)) return;
+    const shift = await this.shiftRepo.findOne({
+      where: { id: shiftId },
+      relations: ['driver'],
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.driver?.userId !== user.id) {
+      throw new ForbiddenException('Not your shift');
+    }
+  }
+
+  async findByShift(shiftId: string, user: any) {
+    await this.assertCanAccessShift(shiftId, user);
     return this.missionRepo.find({
       where: { shiftId },
       relations: ['items', 'payments', 'pod', 'customer'],
@@ -43,6 +73,9 @@ export class MissionsService {
     plannedAmount?: number;
     items?: { productId: string; orderedQty: number; unitPrice?: number }[];
   }) {
+    if (!data.shiftId || !data.customerId) {
+      throw new BadRequestException('shiftId and customerId required');
+    }
     const mission = this.missionRepo.create({
       shiftId: data.shiftId,
       customerId: data.customerId,
@@ -62,8 +95,13 @@ export class MissionsService {
     return this.missionRepo.save(mission);
   }
 
-  async markArrival(id: string, lat?: number, lng?: number, distanceM?: number) {
+  async markArrival(id: string, user: any, lat?: number, lng?: number, distanceM?: number) {
     const m = await this.findOne(id);
+    await this.assertCanAccessShift(m.shiftId, user);
+
+    if (m.status === MissionStatus.COMPLETED || m.status === MissionStatus.FAILED) {
+      throw new BadRequestException('Cannot arrive on a closed mission');
+    }
     if (m.status === MissionStatus.PENDING) m.status = MissionStatus.ACCEPTED;
     m.status = MissionStatus.IN_PROGRESS;
     m.arrivalAt = new Date();
@@ -73,12 +111,9 @@ export class MissionsService {
     return this.missionRepo.save(m);
   }
 
-  /**
-   * بستن مأموریت — تراکنش اتمیک G3 + G5 + G4 Idempotency
-   */
   async completeMission(
     missionId: string,
-    userId: string,
+    user: any,
     clientOpId: string | undefined,
     payload: {
       items: { productId: string; deliveredQty: number }[];
@@ -88,9 +123,16 @@ export class MissionsService {
       failReason?: string;
     },
   ) {
-    // G4 Idempotency
+    const existingMission = await this.findOne(missionId);
+    await this.assertCanAccessShift(existingMission.shiftId, user);
+
     if (clientOpId) {
-      const existing = await this.idemRepo.findOne({ where: { clientOpId } });
+      if (!/^[0-9a-fA-F-]{36}$/.test(clientOpId)) {
+        throw new BadRequestException('Invalid X-Client-Op-Id (UUID required)');
+      }
+      const existing = await this.idemRepo.findOne({
+        where: { clientOpId, userId: user.id },
+      });
       if (existing?.response) return existing.response;
     }
 
@@ -98,10 +140,11 @@ export class MissionsService {
       const mission = await manager.findOne(Mission, {
         where: { id: missionId },
         relations: ['items'],
+        lock: { mode: 'pessimistic_write' },
       });
       if (!mission) throw new NotFoundException('Mission not found');
-      if (mission.status === MissionStatus.COMPLETED) {
-        throw new BadRequestException('Mission already completed');
+      if (mission.status === MissionStatus.COMPLETED || mission.status === MissionStatus.FAILED) {
+        throw new BadRequestException('Mission already closed');
       }
 
       if (payload.failReason) {
@@ -112,13 +155,13 @@ export class MissionsService {
         return { mission };
       }
 
-      // POD
-      if (!payload.pod?.recipientName) {
+      if (!payload.pod?.recipientName?.trim()) {
         throw new BadRequestException('Recipient name required');
       }
+
       const pod = manager.create(PodRecord, {
         missionId,
-        recipientName: payload.pod.recipientName,
+        recipientName: payload.pod.recipientName.trim(),
         signatureUrl: payload.pod.signatureUrl || null,
         photoUrl: payload.pod.photoUrl || null,
         lat: payload.pod.lat ?? null,
@@ -128,125 +171,157 @@ export class MissionsService {
 
       let deliveredAmount = 0;
 
-      // Items + G3 inventory deduction
       for (const line of payload.items || []) {
+        const qty = Number(line.deliveredQty);
+        if (!Number.isFinite(qty) || qty < 0) {
+          throw new BadRequestException('deliveredQty must be >= 0');
+        }
         const item = mission.items?.find((i) => i.productId === line.productId);
         if (item) {
-          item.deliveredQty = line.deliveredQty;
-          item.lineTotal = item.deliveredQty * Number(item.unitPrice);
-          deliveredAmount += item.lineTotal;
+          item.deliveredQty = qty;
+          item.lineTotal = qty * Number(item.unitPrice);
+          deliveredAmount += Number(item.lineTotal);
           await manager.save(item);
         }
 
-        // Lock and update shift_inventory
-        const inv = await manager.findOne(ShiftInventory, {
-          where: { shiftId: mission.shiftId, productId: line.productId },
-        });
+        const inv = await manager
+          .getRepository(ShiftInventory)
+          .createQueryBuilder('inv')
+          .setLock('pessimistic_write')
+          .where('inv.shift_id = :shiftId AND inv.product_id = :productId', {
+            shiftId: mission.shiftId,
+            productId: line.productId,
+          })
+          .getOne();
+
         if (inv) {
-          if (line.deliveredQty > inv.remainingQty) {
+          if (qty > Number(inv.remainingQty)) {
             throw new BadRequestException(`Insufficient inventory for product ${line.productId}`);
           }
-          inv.deliveredQty += line.deliveredQty;
-          inv.remainingQty = inv.openingQty - inv.deliveredQty;
+          inv.deliveredQty = Number(inv.deliveredQty) + qty;
+          inv.remainingQty = Number(inv.openingQty) - Number(inv.deliveredQty);
           await manager.save(inv);
+        } else if (qty > 0) {
+          throw new BadRequestException(`Product ${line.productId} not loaded on shift`);
         }
       }
 
-      // Payments
       let collected = 0;
       for (const p of payload.payments || []) {
+        const amount = Math.round(Number(p.amount) || 0);
+        if (amount < 0) throw new BadRequestException('Payment amount cannot be negative');
+        if (amount === 0) continue;
+
         const payment = manager.create(Payment, {
           missionId,
-          amount: Math.round(Number(p.amount) || 0),
-          method: p.method,
+          amount,
+          method: p.method || PaymentMethod.CASH,
           referenceNumber: p.referenceNumber || null,
           isPartial: p.isPartial || false,
         });
         await manager.save(payment);
-        collected += Number(p.amount);
+        collected += amount;
 
-        // G5 ledger: payment reduces debt
-        if (p.amount) {
-          const ledger = manager.create(CustomerLedger, {
-            customerId: mission.customerId,
-            delta: -Number(p.amount),
-            reason: 'payment',
-            missionId,
-            paymentId: payment.id,
-          });
-          await manager.save(ledger);
-        }
+        const ledger = manager.create(CustomerLedger, {
+          customerId: mission.customerId,
+          delta: -amount,
+          reason: 'payment',
+          missionId,
+          paymentId: payment.id,
+        });
+        await manager.save(ledger);
       }
 
-      // G5 returns
       for (const r of payload.returns || []) {
+        const rq = Number(r.qty);
+        if (!Number.isFinite(rq) || rq <= 0) throw new BadRequestException('Invalid return qty');
+        const item = mission.items?.find((i) => i.productId === r.productId);
+        if (item && rq > Number(item.deliveredQty)) {
+          throw new BadRequestException('Return exceeds delivered qty');
+        }
         const ret = manager.create(ReturnRecord, {
           missionId,
           productId: r.productId,
-          qty: r.qty,
+          qty: rq,
           kind: r.kind,
           note: r.note || null,
         });
         await manager.save(ret);
 
-        // optionally restock non-damaged returns
         if (r.kind === ReturnKind.RETURN) {
-          const inv = await manager.findOne(ShiftInventory, {
-            where: { shiftId: mission.shiftId, productId: r.productId },
-          });
+          const inv = await manager
+            .getRepository(ShiftInventory)
+            .createQueryBuilder('inv')
+            .setLock('pessimistic_write')
+            .where('inv.shift_id = :shiftId AND inv.product_id = :productId', {
+              shiftId: mission.shiftId,
+              productId: r.productId,
+            })
+            .getOne();
           if (inv) {
-            inv.deliveredQty = Math.max(0, inv.deliveredQty - r.qty);
-            inv.remainingQty = inv.openingQty - inv.deliveredQty;
+            inv.deliveredQty = Math.max(0, Number(inv.deliveredQty) - rq);
+            inv.remainingQty = Number(inv.openingQty) - Number(inv.deliveredQty);
             await manager.save(inv);
           }
         }
       }
 
-      // debt for unpaid delivered amount
-      const unpaid = deliveredAmount - collected;
-      if (unpaid > 0) {
+      // Debt change = goods delivered - cash collected (net)
+      // delivered increases debt; collected already reduced via payment ledger lines
+      const debtDelta = deliveredAmount;
+      if (debtDelta !== 0) {
         const ledger = manager.create(CustomerLedger, {
           customerId: mission.customerId,
-          delta: unpaid,
-          reason: 'delivery_unpaid',
+          delta: debtDelta,
+          reason: 'delivery',
           missionId,
         });
         await manager.save(ledger);
-
-        const customer = await manager.findOne(Customer, { where: { id: mission.customerId } });
-        if (customer) {
-          customer.outstandingDebt = Number(customer.outstandingDebt) + unpaid;
-          await manager.save(customer);
-        }
-      } else if (collected > 0) {
-        const customer = await manager.findOne(Customer, { where: { id: mission.customerId } });
-        if (customer) {
-          customer.outstandingDebt = Math.max(0, Number(customer.outstandingDebt) - collected);
-          await manager.save(customer);
-        }
       }
 
-      mission.deliveredAmount = deliveredAmount;
-      mission.collectedAmount = collected;
+      const customer = await manager.findOne(Customer, {
+        where: { id: mission.customerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (customer) {
+        // outstanding = previous + delivered - collected
+        customer.outstandingDebt = Number(customer.outstandingDebt || 0) + deliveredAmount - collected;
+        await manager.save(customer);
+      }
+
       mission.status = MissionStatus.COMPLETED;
       mission.completedAt = new Date();
+      mission.deliveredAmount = deliveredAmount;
+      mission.collectedAmount = collected;
       await manager.save(mission);
 
-      return { mission, deliveredAmount, collected };
+      const response = { mission, deliveredAmount, collected, podId: pod.id };
+
+      if (clientOpId) {
+        const key = manager.create(IdempotencyKey, {
+          clientOpId,
+          userId: user.id,
+          endpoint: `missions/${missionId}/complete`,
+          response,
+          statusCode: 200,
+          expiresAt: new Date(Date.now() + 48 * 3600 * 1000),
+        });
+        await manager.save(key);
+      }
+
+      return response;
     });
 
-    // store idempotency response
-    if (clientOpId) {
-      const key = this.idemRepo.create({
-        clientOpId,
-        userId,
-        endpoint: `missions/${missionId}/complete`,
-        response: result,
-        statusCode: 200,
-        expiresAt: new Date(Date.now() + 48 * 3600 * 1000),
-      });
-      await this.idemRepo.save(key);
-    }
+    await this.audit.log({
+      userId: user.id,
+      userPhone: user.phone,
+      userName: user.fullName,
+      action: 'mission.complete',
+      module: 'missions',
+      entityId: missionId,
+      summary: `Completed mission ${missionId}`,
+      payload: { deliveredAmount: (result as any).deliveredAmount, collected: (result as any).collected },
+    });
 
     return result;
   }

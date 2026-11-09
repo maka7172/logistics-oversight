@@ -11,12 +11,15 @@ import { Customer } from '../../database/entities/customer.entity';
 import { IdempotencyKey } from '../../database/entities/idempotency-key.entity';
 import { MissionsService } from './missions.service';
 import { MissionsController } from './missions.controller';
+import { Shift } from '../../database/entities/shift.entity';
+import { Driver } from '../../database/entities/driver.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Mission, MissionItem, Payment, PodRecord, ReturnRecord,
       ShiftInventory, CustomerLedger, Customer, IdempotencyKey,
+      Shift, Driver,
     ]),
   ],
   providers: [MissionsService],
@@ -24,3 +27,7 @@ import { MissionsController } from './missions.controller';
   exports: [MissionsService],
 })
 export class MissionsModule {}
+
+
+
+

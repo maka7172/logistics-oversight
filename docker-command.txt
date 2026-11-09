@@ -17,14 +17,22 @@ flutter pub get
 flutter run
 
             $env:PUB_HOSTED_URL="https://pub.flutter-io.cn"
-            $env:FLUTTER_STORAGE_BASE_URL="https://storage.flutter-io.cn"
+            $env:FLUTTER_STORAGE_BASE_URL="https://storage.flutter-io.cn"  ,"https://storage.googleapis.com"
 
             flutter doctor
             cd D:\project\logistics-oversight\apps\field_app
             flutter create . --project-name field_app
+                android\gradle\gradle.propertise :
+                    kotlin.incremental=false
+                    kotlin.compiler.execution.strategy=in-process
+
             flutter pub get
             flutter devices
             flutter run -d <R58n51AJJKL>--> device_ID
-            
+            flutter build apk --release
 
+
+   **********************************************         
+ssh -o ServerAliveInterval=60 -R 80:localhost:3001 nokey@localhost.run
+   ************************************************
 

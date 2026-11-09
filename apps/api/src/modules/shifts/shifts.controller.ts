@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ShiftsService } from './shifts.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -12,14 +12,14 @@ export class ShiftsController {
 
   @Get()
   @Permissions('shifts:read')
-  findAll(@Query('status') status?: string) {
-    return this.service.findAll(status);
+  findAll(@Query('status') status: string | undefined, @CurrentUser() user: any) {
+    return this.service.findAll(status, user);
   }
 
   @Get(':id')
   @Permissions('shifts:read')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.assertCanAccess(id, user);
   }
 
   @Get(':id/loads')
@@ -36,14 +36,12 @@ export class ShiftsController {
 
   @Post()
   @Permissions('shifts:start', 'shifts:read', 'shifts:inventory', 'inventory:write')
-  @ApiOperation({ summary: 'Create shift for a driver' })
-  create(@Body() body: { driverId: string; vehicleId?: string }) {
-    return this.service.create(body.driverId, body.vehicleId);
+  create(@CurrentUser() user: any, @Body() body: { driverId: string; vehicleId?: string }) {
+    return this.service.create(body.driverId, body.vehicleId, user.id);
   }
 
   @Post(':id/load')
   @Permissions('shifts:inventory', 'inventory:write')
-  @ApiOperation({ summary: 'Supervisor: register opening inventory + cash (G1)' })
   createLoad(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -54,25 +52,24 @@ export class ShiftsController {
 
   @Post('load/:recordId/approve')
   @Permissions('shifts:inventory', 'inventory:write')
-  @ApiOperation({ summary: 'Approve load record (approved_by) and set shift READY' })
   approveLoad(@Param('recordId') recordId: string, @CurrentUser() user: any) {
     return this.service.approveLoad(recordId, user.id);
   }
 
   @Post(':id/start')
   @Permissions('shifts:start')
-  @ApiOperation({ summary: 'Driver starts shift' })
   start(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.service.startShift(id, user.id);
+    const staff = !!(user.isSuperAdmin || user.roles?.includes('supervisor') || user.roles?.includes('admin'));
+    return this.service.startShift(id, user.id, staff);
   }
 
   @Post(':id/close')
   @Permissions('shifts:close')
-  @ApiOperation({ summary: 'Close shift with reported cash' })
   close(
     @Param('id') id: string,
+    @CurrentUser() user: any,
     @Body() body: { closingCashReported: number; discrepancyNote?: string },
   ) {
-    return this.service.closeShift(id, body.closingCashReported, body.discrepancyNote);
+    return this.service.closeShift(id, user, body.closingCashReported ?? 0, body.discrepancyNote);
   }
 }

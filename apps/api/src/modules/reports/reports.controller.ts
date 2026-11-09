@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import {CurrentUser} from '../../common/decorators/current-user.decorator' ;
 
 @ApiTags('Reports')
 @ApiBearerAuth()
@@ -42,8 +43,14 @@ export class ReportsController {
 
   @Post('location-ping')
   @Permissions('gis:write', 'shifts:start', 'missions:close', 'shifts:read', 'shifts:inventory')
-  postPing(@Body() body: any) {
-    return this.service.postPing(body);
+  postPing(@CurrentUser() user: any, @Body() body: any) {
+    // force identity from token for non-staff
+    const staff = !!(user.isSuperAdmin || user.roles?.includes('supervisor') || user.roles?.includes('admin'));
+    const payload = { ...body, userId: user.id };
+    if (!staff) {
+      delete payload.driverId; // must resolve from userId only
+    }
+    return this.service.postPing(payload);
   }
 
   @Get('audit')

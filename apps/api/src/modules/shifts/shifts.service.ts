@@ -128,24 +128,24 @@ export class ShiftsService {
 
   async approveLoad(recordId: string, approverId: string) {
     return this.dataSource.transaction(async (manager) => {
-      const record = await manager.findOne(InventoryLoadRecord, {
-        where: { id: recordId },
-        relations: ['lines'],
-        lock: { mode: 'pessimistic_write' },
-      });
+      // IMPORTANT: do not combine relations + pessimistic_write (PG outer-join FOR UPDATE error)
+      const record = await manager
+        .createQueryBuilder(InventoryLoadRecord, 'r')
+        .setLock('pessimistic_write')
+        .where('r.id = :id', { id: recordId })
+        .getOne();
       if (!record) throw new NotFoundException('Load record not found');
       if (record.status === LoadRecordStatus.APPROVED) {
         throw new BadRequestException('Already approved');
       }
-      if (record.createdBy === approverId) {
-        // allow in small teams but log — forbid same person for stronger control:
-        // throw new ForbiddenException('Creator cannot approve own load');
-      }
 
-      const shift = await manager.findOne(Shift, {
-        where: { id: record.shiftId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const lines = await manager.find(LoadLine, { where: { recordId: record.id } });
+
+      const shift = await manager
+        .createQueryBuilder(Shift, 's')
+        .setLock('pessimistic_write')
+        .where('s.id = :id', { id: record.shiftId })
+        .getOne();
       if (!shift) throw new NotFoundException('Shift not found');
       if (shift.status !== ShiftStatus.PENDING && shift.status !== ShiftStatus.READY) {
         throw new BadRequestException('Cannot approve load on active/closed shift');
@@ -156,33 +156,37 @@ export class ShiftsService {
       record.approvedAt = new Date();
       await manager.save(record);
 
-      shift.openingCashFloat = record.openingCash;
+      shift.openingCashFloat = Number(record.openingCash || 0);
       shift.inventoryApprovedBy = approverId;
       shift.inventoryApprovedAt = new Date();
       shift.status = ShiftStatus.READY;
       await manager.save(shift);
 
-      for (const line of record.lines || []) {
-        let inv = await manager.findOne(ShiftInventory, {
-          where: { shiftId: shift.id, productId: line.productId },
-          lock: { mode: 'pessimistic_write' },
-        });
+      for (const line of lines) {
+        let inv = await manager
+          .createQueryBuilder(ShiftInventory, 'i')
+          .setLock('pessimistic_write')
+          .where('i.shift_id = :sid AND i.product_id = :pid', {
+            sid: shift.id,
+            pid: line.productId,
+          })
+          .getOne();
         if (!inv) {
           inv = manager.create(ShiftInventory, {
             shiftId: shift.id,
             productId: line.productId,
-            openingQty: line.qty,
+            openingQty: Number(line.qty),
             deliveredQty: 0,
-            remainingQty: line.qty,
+            remainingQty: Number(line.qty),
           });
         } else {
-          inv.openingQty = line.qty;
-          inv.remainingQty = line.qty - Number(inv.deliveredQty || 0);
+          inv.openingQty = Number(line.qty);
+          inv.remainingQty = Number(line.qty) - Number(inv.deliveredQty || 0);
         }
         await manager.save(inv);
       }
 
-      return { shift, record };
+      return { shift, record: { ...record, lines } };
     });
   }
 
@@ -201,37 +205,49 @@ export class ShiftsService {
 
   async closeShift(shiftId: string, user: any, closingCashReported: number, discrepancyNote?: string) {
     await this.assertCanAccess(shiftId, user);
-    if (closingCashReported < 0) throw new BadRequestException('Invalid cash amount');
+    const cash = Number(closingCashReported);
+    if (!Number.isFinite(cash) || cash < 0) {
+      throw new BadRequestException('Invalid cash amount');
+    }
 
-    return this.dataSource.transaction(async (manager) => {
-      const shift = await manager.findOne(Shift, {
-        where: { id: shiftId },
-        lock: { mode: 'pessimistic_write' },
-      });
+    const saved = await this.dataSource.transaction(async (manager) => {
+      // Shift has eager relations (driver/vehicle). Never lock with eager joins on PG.
+      const shift = await manager
+        .createQueryBuilder(Shift, 's')
+        .setLock('pessimistic_write')
+        .where('s.id = :id', { id: shiftId })
+        .getOne();
       if (!shift) throw new NotFoundException('Shift not found');
       if (shift.status !== ShiftStatus.ACTIVE && shift.status !== ShiftStatus.CLOSING) {
-        throw new BadRequestException('Shift cannot be closed from current status');
+        throw new BadRequestException(
+          `Shift cannot be closed from status=${shift.status} (must be active)`,
+        );
       }
 
-      const expected = shift.expectedCash ?? shift.openingCashFloat;
-      const discrepancy = closingCashReported - Number(expected);
+      const expected = Number(shift.expectedCash ?? shift.openingCashFloat ?? 0);
+      const discrepancy = cash - expected;
 
-      shift.closingCashReported = closingCashReported;
-      shift.cashDiscrepancy = discrepancy;
+      shift.closingCashReported = Math.round(cash);
+      shift.cashDiscrepancy = Math.round(discrepancy);
       shift.discrepancyNote = discrepancyNote || null;
       shift.status = ShiftStatus.CLOSED;
       shift.endedAt = new Date();
-      await manager.save(shift);
+      return manager.save(shift);
+    });
 
+    try {
       await this.audit.log({
         userId: user.id,
         action: 'shift.close',
         module: 'shifts',
         entityId: shiftId,
-        summary: `Closed shift cash=${closingCashReported}`,
+        summary: `Closed shift cash=${cash}`,
       });
+    } catch {
+      // audit must not break close
+    }
 
-      return shift;
-    });
+    return saved;
   }
 }
+

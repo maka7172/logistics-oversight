@@ -129,3 +129,10 @@ logging:
     - token
     - secret
     - otp
+
+
+storage:
+  enabled: true          # false = force disable uploads
+  bucket: "logistics"
+  publicBaseUrl: ""      # optional CDN/public URL; empty = constructed from endpoint
+  maxUploadMb: 8

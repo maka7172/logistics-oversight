@@ -40,7 +40,7 @@ services:
       - lo-net
 
   minio:
-    image: minio/minio:latest
+    image: cleanstart/minio:latest
     container_name: lo-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"

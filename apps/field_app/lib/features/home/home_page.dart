@@ -47,16 +47,16 @@ class _HomePageState extends State<HomePage> {
     final supervisorLike = user.isSupervisor; // includes admin + super_admin
 
     if (driverLike) {
-      list.add(_MenuItem('شیفت‌های من', 'شروع و بستن شیفت راننده', Icons.schedule_rounded, const Color(0xFF0EA5E9), const DriverShiftsPage()));
-      list.add(_MenuItem('مأموریت‌ها', 'رسیدن و تحویل کالا', Icons.local_shipping_rounded, const Color(0xFF8B5CF6), const DriverMissionsPage()));
-      list.add(_MenuItem('موقعیت من', 'ارسال زنده مختصات', Icons.my_location_rounded, const Color(0xFF10B981), const LiveMapPage()));
+      list.add(_MenuItem('شیفت‌های من', 'شروع و بستن شیفت راننده', Icons.schedule_rounded, AppTheme.brand, const DriverShiftsPage()));
+      list.add(_MenuItem('مأموریت‌ها', 'رسیدن و تحویل کالا', Icons.local_shipping_rounded, const Color(0xFFC53414), const DriverMissionsPage()));
+      list.add(_MenuItem('موقعیت من', 'ارسال زنده مختصات', Icons.my_location_rounded, const Color(0xFF0A0A0A), const LiveMapPage()));
     }
 
     if (supervisorLike) {
-      list.add(_MenuItem('مدیریت شیفت', 'ایجاد شیفت برای راننده', Icons.event_available_rounded, const Color(0xFF6366F1), const SupervisorShiftsPage()));
+      list.add(_MenuItem('مدیریت شیفت', 'ایجاد شیفت برای راننده', Icons.event_available_rounded, AppTheme.brand, const SupervisorShiftsPage()));
       list.add(_MenuItem('بار انبار', 'ثبت و تأیید بار', Icons.inventory_2_rounded, const Color(0xFFF59E0B), const SupervisorLoadPage()));
-      list.add(_MenuItem('تعریف مأموریت', 'انتخاب مشتری مقصد', Icons.add_road_rounded, const Color(0xFFEF4444), const SupervisorMissionsPage()));
-      list.add(_MenuItem('نقشه راننده‌ها', 'آخرین موقعیت‌ها', Icons.map_rounded, const Color(0xFF14B8A6), const LiveMapPage(supervisorMode: true)));
+      list.add(_MenuItem('تعریف مأموریت', 'انتخاب مشتری مقصد', Icons.add_road_rounded, AppTheme.brand, const SupervisorMissionsPage()));
+      list.add(_MenuItem('نقشه راننده‌ها', 'آخرین موقعیت‌ها', Icons.map_rounded, const Color(0xFF0A0A0A), const LiveMapPage(supervisorMode: true)));
     }
     return list;
   }
@@ -70,7 +70,7 @@ class _HomePageState extends State<HomePage> {
       return Scaffold(
         appBar: AppBar(
           leading: IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => setState(() => openPage = null)),
-          title: const Text('واحد لجستیک'),
+          title: const Text('ROOK'),
           actions: [
             IconButton(
               icon: const Icon(Icons.logout_rounded),
@@ -90,7 +90,7 @@ class _HomePageState extends State<HomePage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('واحد لجستیک'),
+            const Text('ROOK'),
             Text('${user.fullName} · ${user.phone}', style: const TextStyle(fontSize: 11, color: AppTheme.muted, fontWeight: FontWeight.w500)),
           ],
         ),

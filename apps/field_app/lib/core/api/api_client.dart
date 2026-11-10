@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../security/secure_storage.dart';
@@ -16,11 +17,11 @@ class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
   final http.Client _client;
 
-  Future<Map<String, String>> _headers({bool auth = true}) async {
+  Future<Map<String, String>> _headers({bool auth = true, bool json = true}) async {
     final h = <String, String>{
-      'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+    if (json) h['Content-Type'] = 'application/json';
     final deviceId = await DeviceBinding.getOrCreateDeviceId();
     h['X-Device-Id'] = deviceId;
     if (auth) {
@@ -63,6 +64,26 @@ class ApiClient {
         .patch(_uri(path), headers: await _headers(), body: body == null ? null : jsonEncode(body))
         .timeout(AppConfig.connectTimeout);
     return _handle(res);
+  }
+
+  /// Multipart upload for POD photo/signature. Returns parsed JSON map.
+  Future<Map<String, dynamic>> uploadFile(
+    String path,
+    File file, {
+    String fieldName = 'file',
+    Map<String, String>? query,
+  }) async {
+    final uri = _uri(path, query);
+    final req = http.MultipartRequest('POST', uri);
+    final h = await _headers(auth: true, json: false);
+    req.headers.addAll(h);
+    req.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
+    final streamed = await req.send().timeout(const Duration(seconds: 60));
+    final res = await http.Response.fromStream(streamed);
+    final data = _handle(res);
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {'raw': data};
   }
 
   dynamic _handle(http.Response res) {

@@ -64,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
         width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0B4F4A), AppTheme.brandDark, AppTheme.brand],
+            colors: [Color(0xFF1A0A06), AppTheme.brandDark, AppTheme.brand],
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
           ),
@@ -77,21 +77,30 @@ class _LoginPageState extends State<LoginPage> {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
                   children: [
-                    Container(
-                      width: 76,
-                      height: 76,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 8))],
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text('LO', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                    Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: Image.asset(
+                            'assets/brand/combination.png',
+                            width: 92,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        // const SizedBox(height: 12),
+                        // Image.asset(
+                        //   'assets/brand/wordmark_white.png',
+                        //   height: 28,
+                        //   errorBuilder: (_, __, ___) => const Text(
+                        //     'ROOK',
+                        //     style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 3),
+                        //   ),
+                        // ),
+                        // const SizedBox(height: 8),
+                        // Text('سیستم عملیات ROOK', style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13)),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    const Text('واحد لجستیک', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 6),
-                    Text('سامانه عملیات میدانی', style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13)),
                     const SizedBox(height: 28),
                     Container(
                       padding: const EdgeInsets.all(22),

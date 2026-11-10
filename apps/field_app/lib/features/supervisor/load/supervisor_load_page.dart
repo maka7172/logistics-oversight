@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/rook_ui.dart';
 
 class SupervisorLoadPage extends StatefulWidget {
   const SupervisorLoadPage({super.key});
@@ -73,65 +75,88 @@ class _SupervisorLoadPageState extends State<SupervisorLoadPage> {
     }
   }
 
+  
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator());
-    final isTablet = MediaQuery.sizeOf(context).shortestSide >= 600;
-
-    return ListView(
-      padding: EdgeInsets.all(isTablet ? 24 : 16),
+    return Column(
       children: [
-        Text('ثبت بار ناظر', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 4),
-        const Text('فقط شیفت pending یا ready', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          value: shiftId,
-          decoration: const InputDecoration(labelText: 'شیفت'),
-          items: shifts.cast<Map>().map((s) {
-            final id = s['id'].toString();
-            final st = s['status'];
-            final name = s['driver'] is Map && s['driver']['user'] is Map ? s['driver']['user']['fullName'] : id.substring(0, 8);
-            return DropdownMenuItem(value: id, child: Text('$name — $st'));
-          }).toList(),
-          onChanged: (v) => setState(() => shiftId = v),
+        const RookPageHeader('بار انبار', subtitle: 'ثبت و تأیید بار شیفت'),
+        Expanded(child: _body()),
+      ],
+    );
+  }
+
+  Widget _body() {
+    if (loading) return const Center(child: CircularProgressIndicator());
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        RookSectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DropdownButtonFormField<String>(
+                value: shiftId,
+                decoration: const InputDecoration(labelText: 'شیفت'),
+                items: shifts.cast<Map>().map((s) {
+                  final id = s['id'].toString();
+                  final st = s['status'];
+                  return DropdownMenuItem(value: id, child: Text('${id.length > 8 ? id.substring(0, 8) : id} — $st'));
+                }).toList(),
+                onChanged: (v) => setState(() => shiftId = v),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: cashCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'نقد اولیه (ریال)'),
+              ),
+              const SizedBox(height: 12),
+              const Text('اقلام بار', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              ...List.generate(lines.length, (i) {
+                final line = lines[i];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: DropdownButtonFormField<String>(
+                          value: (line['productId']?.isEmpty ?? true) ? null : line['productId'],
+                          decoration: const InputDecoration(labelText: 'کالا'),
+                          items: products.cast<Map>().map((p) {
+                            return DropdownMenuItem(
+                              value: p['id'].toString(),
+                              child: Text('${p['name']}'),
+                            );
+                          }).toList(),
+                          onChanged: (v) => setState(() => lines[i]['productId'] = v ?? ''),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: line['qty'],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'تعداد'),
+                          onChanged: (v) => lines[i]['qty'] = v,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              TextButton.icon(
+                onPressed: () => setState(() => lines.add({'productId': '', 'qty': '1'})),
+                icon: const Icon(Icons.add),
+                label: const Text('ردیف کالا'),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(onPressed: _submit, child: const Text('ثبت بار')),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
-        TextField(controller: cashCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'تنخواه / نقد اولیه')),
-        const SizedBox(height: 12),
-        ...lines.asMap().entries.map((e) {
-          final i = e.key;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: DropdownButtonFormField<String>(
-                    value: lines[i]['productId']!.isEmpty ? null : lines[i]['productId'],
-                    decoration: const InputDecoration(labelText: 'کالا'),
-                    items: products.cast<Map>().map((p) {
-                      return DropdownMenuItem(value: p['id'].toString(), child: Text('${p['code']} — ${p['name']}'));
-                    }).toList(),
-                    onChanged: (v) => setState(() => lines[i]['productId'] = v ?? ''),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    initialValue: lines[i]['qty'],
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'تعداد'),
-                    onChanged: (v) => lines[i]['qty'] = v,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-        TextButton(onPressed: () => setState(() => lines.add({'productId': '', 'qty': '1'})), child: const Text('+ ردیف کالا')),
-        const SizedBox(height: 16),
-        FilledButton(onPressed: shiftId == null ? null : _submit, child: const Text('ثبت بار')),
       ],
     );
   }

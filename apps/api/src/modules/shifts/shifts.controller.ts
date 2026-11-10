@@ -16,10 +16,12 @@ export class ShiftsController {
     return this.service.findAll(status, user);
   }
 
-  @Get(':id')
-  @Permissions('shifts:read')
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.service.assertCanAccess(id, user);
+  /** static path first — avoid capture by :id */
+  @Post('load/:recordId/approve')
+  @Permissions('shifts:inventory', 'inventory:write')
+  @ApiOperation({ summary: 'Approve inventory load → shift becomes ready' })
+  approveLoad(@Param('recordId') recordId: string, @CurrentUser() user: any) {
+    return this.service.approveLoad(recordId, user.id);
   }
 
   @Get(':id/loads')
@@ -32,6 +34,12 @@ export class ShiftsController {
   @Permissions('inventory:read', 'shifts:read')
   inventory(@Param('id') id: string) {
     return this.service.getInventory(id);
+  }
+
+  @Get(':id')
+  @Permissions('shifts:read')
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.service.assertCanAccess(id, user);
   }
 
   @Post()
@@ -48,12 +56,6 @@ export class ShiftsController {
     @Body() body: { openingCash: number; lines: { productId: string; qty: number }[] },
   ) {
     return this.service.createLoadRecord(id, user.id, body.openingCash || 0, body.lines || []);
-  }
-
-  @Post('load/:recordId/approve')
-  @Permissions('shifts:inventory', 'inventory:write')
-  approveLoad(@Param('recordId') recordId: string, @CurrentUser() user: any) {
-    return this.service.approveLoad(recordId, user.id);
   }
 
   @Post(':id/start')

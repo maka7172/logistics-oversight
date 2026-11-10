@@ -23,7 +23,7 @@ class FieldApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => AuthState(ctx.read<ApiClient>())..hydrate()),
       ],
       child: MaterialApp(
-        title: 'Logistics Field',
+        title: 'ROOK',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         locale: const Locale('fa'),

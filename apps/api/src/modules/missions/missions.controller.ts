@@ -32,6 +32,7 @@ export class MissionsController {
 
   @Post(':id/arrive')
   @Permissions('missions:close', 'missions:write')
+  @ApiOperation({ summary: 'Mark arrival (idempotent)' })
   arrive(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -43,12 +44,14 @@ export class MissionsController {
   @Post(':id/complete')
   @Permissions('missions:close')
   @ApiHeader({ name: 'X-Client-Op-Id', required: false })
+  @ApiHeader({ name: 'Idempotency-Key', required: false })
   complete(
     @Param('id') id: string,
     @CurrentUser() user: any,
     @Headers('x-client-op-id') clientOpId: string | undefined,
+    @Headers('idempotency-key') idemKey: string | undefined,
     @Body() body: any,
   ) {
-    return this.service.completeMission(id, user, clientOpId, body || {});
+    return this.service.completeMission(id, user, clientOpId || idemKey, body || {});
   }
 }

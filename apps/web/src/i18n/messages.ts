@@ -1,6 +1,6 @@
 export const messages = {
   fa: {
-    appName: 'نظارت لجستیک',
+    appName: 'ROOK',
     login: 'ورود',
     phone: 'شماره موبایل',
     otp: 'کد تأیید',
@@ -34,7 +34,7 @@ export const messages = {
     welcome: 'خوش آمدید',
   },
   en: {
-    appName: 'Logistics Oversight',
+    appName: 'ROOK',
     login: 'Login',
     phone: 'Phone',
     otp: 'OTP Code',

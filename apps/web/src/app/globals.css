@@ -1,18 +1,174 @@
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --brand: #0f766e;
+  --brand: #EF4523;
+  --brand-dark: #C53414;
+  --brand-soft: #FFF1ED;
+  --brand-soft-2: #FFE4DB;
+  --ink: #0A0A0A;
+  --surface: #FFF7F5;
+  --card: #FFFFFF;
+  --border: #F0E4DF;
+  --muted: #6B7280;
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  background: var(--surface);
+  color: #1f2937;
   font-family: 'Vazirmatn', Tahoma, system-ui, sans-serif;
+  antialiased: true;
 }
 
-[dir='rtl'] body {
-  font-family: 'Vazirmatn', Tahoma, system-ui, sans-serif;
+*:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@layer components {
+  /* Page shell */
+  .rook-page {
+    @apply space-y-6;
+  }
+
+  .rook-page-title {
+    @apply text-xl font-extrabold text-ink tracking-tight;
+  }
+
+  .rook-page-sub {
+    @apply text-sm text-slate-500 mt-1;
+  }
+
+  /* Cards / panels */
+  .rook-card {
+    @apply rounded-2xl border bg-white shadow-sm;
+    border-color: var(--border);
+  }
+
+  .rook-card-header {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3;
+    border-color: var(--border);
+    background: linear-gradient(90deg, #FFF1ED 0%, #ffffff 60%);
+  }
+
+  /* Primary / secondary buttons if class used */
+  .rook-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition;
+  }
+  .rook-btn-primary {
+    @apply rook-btn text-white;
+    background: var(--brand);
+  }
+  .rook-btn-primary:hover {
+    background: var(--brand-dark);
+  }
+  .rook-btn-ghost {
+    @apply rook-btn border bg-white text-slate-700 hover:bg-brand-50;
+    border-color: var(--border);
+  }
+
+  /* Forms inside dashboard */
+  main input[type='text'],
+  main input[type='number'],
+  main input[type='tel'],
+  main input[type='email'],
+  main input[type='password'],
+  main input[type='search'],
+  main input:not([type]),
+  main select,
+  main textarea {
+    @apply w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm transition;
+    border-color: var(--border);
+  }
+  main input:focus,
+  main select:focus,
+  main textarea:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgba(239, 69, 35, 0.15);
+  }
+
+  /* Tables */
+  main table {
+    @apply w-full text-sm;
+  }
+  main thead {
+    background: var(--brand-soft);
+    @apply text-slate-700;
+  }
+  main thead th {
+    @apply px-4 py-3 text-start font-semibold;
+  }
+  main tbody {
+    @apply divide-y bg-white;
+    border-color: var(--border);
+  }
+  main tbody td {
+    @apply px-4 py-3;
+  }
+  main tbody tr:hover {
+    background: #FFF9F7;
+  }
+
+  /* Soft badges */
+  .rook-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .rook-badge-ok {
+    @apply rook-badge bg-emerald-50 text-emerald-700;
+  }
+  .rook-badge-warn {
+    @apply rook-badge bg-amber-50 text-amber-700;
+  }
+  .rook-badge-brand {
+    @apply rook-badge text-brand-800;
+    background: var(--brand-soft);
+  }
+
+  /* Tabs */
+  .rook-tab {
+    @apply rounded-xl px-3 py-2 text-sm font-medium border bg-white text-slate-600 transition;
+    border-color: var(--border);
+  }
+  .rook-tab-active {
+    @apply text-white border-transparent;
+    background: var(--brand);
+  }
+}
+
+/* Override common utility clumps on existing pages without editing each file */
+main .bg-white {
+  background-color: #ffffff;
+}
+main .rounded-2xl.border,
+main .rounded-xl.border,
+main .rounded-2xl.bg-white,
+main .rounded-xl.bg-white {
+  border-color: var(--border) !important;
+}
+
+main button.bg-brand-700,
+main a.bg-brand-700,
+main .bg-brand-700 {
+  background-color: var(--brand) !important;
+}
+main button.bg-brand-700:hover,
+main .bg-brand-700:hover {
+  background-color: var(--brand-dark) !important;
+}
+
+main .bg-brand-50 {
+  background-color: var(--brand-soft) !important;
+}
+main .text-brand-800 {
+  color: var(--brand-dark) !important;
+}
+
+/* Warm page canvas */
+main {
+  background: var(--surface);
+  min-height: 100vh;
 }

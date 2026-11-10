@@ -14,7 +14,6 @@ type NavItem = {
   href: string;
   key: string;
   icon: any;
-  /** permission codes; empty = any authenticated; superOnly = super admin only */
   perms?: string[];
   superOnly?: boolean;
 };
@@ -38,12 +37,17 @@ const nav: NavItem[] = [
 function canSee(item: NavItem, user: any): boolean {
   if (!user) return false;
   if (user.isSuperAdmin || (user.permissions || []).includes('*')) return true;
+
   if (item.superOnly) return false;
   if (!item.perms || item.perms.length === 0) return true;
   const up: string[] = user.permissions || [];
   const roleCodes = (user.roles || []).map((r: any) => r.code);
-  // driver role: only dashboard-level nothing admin
-  if (roleCodes.includes('driver') && !roleCodes.some((c: string) => ['admin', 'supervisor', 'dispatcher', 'finance', 'super_admin'].includes(c))) {
+  if (
+    roleCodes.includes('driver') &&
+    !roleCodes.some((c: string) =>
+      ['admin', 'supervisor', 'dispatcher', 'finance', 'super_admin'].includes(c),
+    )
+  ) {
     return item.href === '/dashboard';
   }
   return item.perms.some((p) => up.includes(p));
@@ -53,16 +57,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout, locale, setLocale } = useAuthStore();
   const t = messages[locale] as any;
-
   const visible = nav.filter((item) => canSee(item, user));
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-30 flex w-64 flex-col border-l border-slate-200 bg-white">
-      <div className="flex h-16 items-center gap-3 border-b border-slate-100 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-700 text-sm font-bold text-white">LO</div>
+    <aside className="fixed inset-y-0 right-0 z-30 flex w-64 flex-col bg-ink text-white">
+      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
+        <img src="/brand/combination.png" alt="ROOK" className="h-10 w-9 rounded-lg object-cover ring-1 ring-white/10" />
         <div>
-          <div className="text-sm font-semibold text-slate-900">{t.appName}</div>
-          <div className="text-[11px] text-slate-400">v2 Admin</div>
+          <div className="text-sm font-bold tracking-[0.2em]">ROOK</div>
+          <div className="text-[11px] text-white/50">Admin Panel</div>
         </div>
       </div>
 
@@ -76,7 +79,9 @@ export function Sidebar() {
               href={item.href}
               className={cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
-                active ? 'bg-brand-50 text-brand-800' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                active
+                  ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/25'
+                  : 'text-white/70 hover:bg-white/8 hover:text-white',
               )}
             >
               <Icon size={18} className="shrink-0" />
@@ -86,21 +91,24 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-slate-100 p-3 space-y-2">
+      <div className="border-t border-white/10 p-3 space-y-2">
         <button
           onClick={() => setLocale(locale === 'fa' ? 'en' : 'fa')}
-          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/70 hover:bg-white/8 hover:text-white"
         >
           <Languages size={16} />
           {locale === 'fa' ? 'English' : 'فارسی'}
         </button>
-        <div className="rounded-xl bg-slate-50 px-3 py-2">
-          <div className="text-sm font-medium text-slate-800 truncate">{user?.fullName}</div>
-          <div className="text-xs text-slate-400 dir-ltr text-left">{user?.phone}</div>
+        <div className="rounded-xl bg-white/8 px-3 py-2">
+          <div className="text-sm font-medium text-white truncate">{user?.fullName}</div>
+          <div className="text-xs text-white/45 dir-ltr text-left">{user?.phone}</div>
         </div>
         <button
-          onClick={() => { logout(); window.location.href = '/login'; }}
-          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+          onClick={() => {
+            logout();
+            window.location.href = '/login';
+          }}
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-brand-300 hover:bg-brand-500/15 hover:text-brand-200"
         >
           <LogOut size={16} />
           {t.logout}

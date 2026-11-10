@@ -102,6 +102,12 @@ export class MissionsService {
     if (m.status === MissionStatus.COMPLETED || m.status === MissionStatus.FAILED) {
       throw new BadRequestException('Cannot arrive on a closed mission');
     }
+
+    // Idempotent: first arrival wins — do not create a new "arrival" each tap
+    if (m.arrivalAt) {
+      return m;
+    }
+
     if (m.status === MissionStatus.PENDING) m.status = MissionStatus.ACCEPTED;
     m.status = MissionStatus.IN_PROGRESS;
     m.arrivalAt = new Date();
@@ -137,12 +143,14 @@ export class MissionsService {
     }
 
     const result = await this.dataSource.transaction(async (manager) => {
-      const mission = await manager.findOne(Mission, {
-        where: { id: missionId },
-        relations: ['items'],
-        lock: { mode: 'pessimistic_write' },
-      });
+      // Do NOT combine relations + pessimistic_write (PostgreSQL FOR UPDATE outer-join error → 500)
+      const mission = await manager
+        .createQueryBuilder(Mission, 'm')
+        .setLock('pessimistic_write')
+        .where('m.id = :id', { id: missionId })
+        .getOne();
       if (!mission) throw new NotFoundException('Mission not found');
+      mission.items = await manager.find(MissionItem, { where: { missionId } });
       if (mission.status === MissionStatus.COMPLETED || mission.status === MissionStatus.FAILED) {
         throw new BadRequestException('Mission already closed');
       }
@@ -279,10 +287,11 @@ export class MissionsService {
         await manager.save(ledger);
       }
 
-      const customer = await manager.findOne(Customer, {
-        where: { id: mission.customerId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const customer = await manager
+        .createQueryBuilder(Customer, 'c')
+        .setLock('pessimistic_write')
+        .where('c.id = :id', { id: mission.customerId })
+        .getOne();
       if (customer) {
         // outstanding = previous + delivered - collected
         customer.outstandingDebt = Number(customer.outstandingDebt || 0) + deliveredAmount - collected;
